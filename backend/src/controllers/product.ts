@@ -4,6 +4,9 @@ import InternalServerError from '../errors/internalServerError';
 import Product, { IProduct } from '../models/product';
 import BadRequestError from '../errors/badRequestError';
 import ConflictError from '../errors/conflictError';
+import { deleteFile, moveFileToFinal } from './upload';
+import NotFoundError from '../errors/notFoundError';
+import { AuthRequest } from '../middlewares/auth';
 
 export const getProducts = (_req: Request, res: Response, next: NextFunction) => {
   Product.find({})
@@ -16,42 +19,121 @@ export const getProducts = (_req: Request, res: Response, next: NextFunction) =>
     });
 };
 
-export const postProducts = async (req: Request, res: Response, next: NextFunction) => {
+export const postProducts = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const productJSON = {
-      description: 'Будет стоять над душой и не давать прокрастинировать.',
-      image: {
-        fileName: '/images/Asterisk_2.png',
-        originalName: 'Asterisk_2.png',
-      },
-      title: 'Мамка-таймер',
-      category: 'софт-скил',
-      price: null,
-    };
+    const {
+      title, description, image, category, price,
+    } = req.body;
 
-    const productData: IProduct = req.body.description ? req.body : productJSON;
-
-    if (!productData.title
-      || !productData.description
-      || !productData.image
-      || !productData.category) {
+    if (!title || !description || !image || !category) {
       return next(new BadRequestError('Missing product fields'));
     }
 
-    if (!productData.image.fileName || !productData.image.originalName) {
+    if (!image.fileName || !image.originalName) {
       return next(new BadRequestError('Missing image fields'));
     }
 
-    const newProduct: IProduct = await Product.create(productData);
+    // Обработка изображения (перемещение из временной папки)
+    const finalImage = { ...image };
+    if (image.fileName.includes('/temp/')) {
+      const finalFileName = await moveFileToFinal(image.fileName);
+      finalImage.fileName = finalFileName;
+    }
+
+    const newProduct = await Product.create({
+      title,
+      description,
+      image: finalImage,
+      category,
+      price,
+    });
 
     return res.status(201).json({
+      ...newProduct.toObject(),
+
       success: true,
       message: 'Product created successfully',
-      data: newProduct,
     });
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('E11000')) {
+  } catch (error: any) {
+    if (error.code === 11000) {
       return next(new ConflictError('A product with this name already exists'));
+    }
+    if (error.name === 'ValidationError') {
+      return next(new BadRequestError('Validation error'));
+    }
+    return next(new InternalServerError());
+  }
+};
+
+export const updateProduct = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { productId } = req.params;
+    const updateData = req.body;
+
+    // Находим текущий товар
+    const existingProduct = await Product.findById(productId);
+    if (!existingProduct) {
+      return next(new NotFoundError('Product not found'));
+    }
+
+    // Обработка нового изображения
+    if (updateData.image?.fileName?.includes('/temp/')) {
+      // Удаляем старый файл если он есть
+      if (existingProduct.image?.fileName) {
+        await deleteFile(existingProduct.image.fileName);
+      }
+      // Перемещаем новый файл
+      updateData.image.fileName = await moveFileToFinal(updateData.image.fileName);
+    }
+
+    // Обновляем товар
+    const updatedProduct = await Product.findByIdAndUpdate(
+      productId,
+      updateData,
+      { new: true, runValidators: true },
+    );
+
+    if (!updatedProduct) {
+      return next(new NotFoundError('Product not found after update'));
+    }
+
+    return res.json({
+      ...updatedProduct.toObject(),
+
+      success: true,
+      message: 'Товар успешно обновлен',
+    });
+  } catch (error: any) {
+    if (error.code === 11000) {
+      return next(new ConflictError('Товар с таким названием уже существует'));
+    }
+    if (error.name === 'ValidationError') {
+      return next(new BadRequestError('Ошибка валидации данных'));
+    }
+    if (error.name === 'CastError') {
+      return next(new BadRequestError('Неверный ID товара'));
+    }
+    return next(new InternalServerError());
+  }
+};
+
+export const deleteProduct = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { productId } = req.params;
+
+    const deletedProduct = await Product.findByIdAndDelete(productId);
+    if (!deletedProduct) {
+      return next(new NotFoundError('Product not found'));
+    }
+
+    return res.json({
+      success: true,
+      message: 'Product deleted successfully',
+      data: deletedProduct,
+    });
+  } catch (error: any) {
+    if (error.name === 'CastError') {
+      return next(new BadRequestError('Invalid product ID'));
     }
     return next(new InternalServerError());
   }
