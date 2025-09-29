@@ -1,17 +1,22 @@
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 
+import InternalServerError from '../errors/internalServerError';
 import Product, { IProduct } from '../models/product';
+import BadRequestError from '../errors/badRequestError';
+import ConflictError from '../errors/conflictError';
 
-export const getProducts = (_req: Request, res: Response) => {
+export const getProducts = (_req: Request, res: Response, next: NextFunction) => {
   Product.find({})
     .then((products: IProduct[]) => res.send({
       items: products,
       total: products.length,
     }))
-    .catch((err: any) => res.status(400).json(`Error: ${err}`));
+    .catch((_err: any) => {
+      next(new InternalServerError('Error while receiving products'));
+    });
 };
 
-export const postProducts = async (req: Request, res: Response) => {
+export const postProducts = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const productJSON = {
       description: 'Будет стоять над душой и не давать прокрастинировать.',
@@ -30,17 +35,11 @@ export const postProducts = async (req: Request, res: Response) => {
       || !productData.description
       || !productData.image
       || !productData.category) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing product fields',
-      });
+      return next(new BadRequestError('Missing product fields'));
     }
 
     if (!productData.image.fileName || !productData.image.originalName) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing image fields',
-      });
+      return next(new BadRequestError('Missing image fields'));
     }
 
     const newProduct: IProduct = await Product.create(productData);
@@ -51,9 +50,9 @@ export const postProducts = async (req: Request, res: Response) => {
       data: newProduct,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-    });
+    if (error instanceof Error && error.message.includes('E11000')) {
+      return next(new ConflictError('A product with this name already exists'));
+    }
+    return next(new InternalServerError());
   }
 };

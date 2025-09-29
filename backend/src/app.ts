@@ -3,6 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import mongoose from 'mongoose';
+import errorHandler from './middlewares/errorHandler';
+import notFoundHandler from './middlewares/notFoundHandler';
 import productRouter from './routes/product';
 import orderRouter from './routes/order';
 
@@ -19,5 +21,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/product', productRouter);
 app.use('/order', orderRouter);
+
+app.use(notFoundHandler);
+
+app.use(errorHandler);
 
 app.listen(PORT, () => {});
