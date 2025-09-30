@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import BadRequestError from '../errors/badRequestError';
 import InternalServerError from '../errors/internalServerError';
+import { HTTP_STATUS } from '../constants/httpStatus';
 
 export const uploadFile = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -15,7 +16,7 @@ export const uploadFile = async (req: Request, res: Response, next: NextFunction
       originalName: req.file.originalname,
     };
 
-    return res.json(response);
+    return res.status(HTTP_STATUS.OK).json(response);
   } catch (error) {
     return next(new InternalServerError());
   }

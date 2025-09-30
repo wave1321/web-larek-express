@@ -1,22 +1,29 @@
 import { NextFunction, Request, Response } from 'express';
-
 import InternalServerError from '../errors/internalServerError';
-import Product, { IProduct } from '../models/product';
+import Product from '../models/product';
 import BadRequestError from '../errors/badRequestError';
 import ConflictError from '../errors/conflictError';
 import { deleteFile, moveFileToFinal } from './upload';
 import NotFoundError from '../errors/notFoundError';
 import { AuthRequest } from '../middlewares/auth';
+import { HTTP_STATUS } from '../constants/httpStatus';
 
-export const getProducts = (_req: Request, res: Response, next: NextFunction) => {
-  Product.find({})
-    .then((products: IProduct[]) => res.send({
+export const getProducts = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const products = await Product.find({});
+
+    if (!products || products.length === 0) {
+      return next(new NotFoundError('No products found'));
+    }
+
+    return res.status(HTTP_STATUS.OK).json({
       items: products,
-      total: products.length,
-    }))
-    .catch((_err: any) => {
-      next(new InternalServerError('Error while receiving products'));
+      success: true,
+      count: products.length,
     });
+  } catch (error: any) {
+    return next(new InternalServerError('Error while receiving products'));
+  }
 };
 
 export const postProducts = async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -48,7 +55,7 @@ export const postProducts = async (req: AuthRequest, res: Response, next: NextFu
       price,
     });
 
-    return res.status(201).json({
+    return res.status(HTTP_STATUS.CREATED).json({
       ...newProduct.toObject(),
 
       success: true,
@@ -97,21 +104,21 @@ export const updateProduct = async (req: AuthRequest, res: Response, next: NextF
       return next(new NotFoundError('Product not found after update'));
     }
 
-    return res.json({
+    return res.status(HTTP_STATUS.OK).json({
       ...updatedProduct.toObject(),
 
       success: true,
-      message: 'Товар успешно обновлен',
+      message: 'Product updated successfully',
     });
   } catch (error: any) {
     if (error.code === 11000) {
-      return next(new ConflictError('Товар с таким названием уже существует'));
+      return next(new ConflictError('A product with this name already exists'));
     }
     if (error.name === 'ValidationError') {
-      return next(new BadRequestError('Ошибка валидации данных'));
+      return next(new BadRequestError('Validation error'));
     }
     if (error.name === 'CastError') {
-      return next(new BadRequestError('Неверный ID товара'));
+      return next(new BadRequestError('Incorrect product ID'));
     }
     return next(new InternalServerError());
   }
@@ -126,7 +133,7 @@ export const deleteProduct = async (req: AuthRequest, res: Response, next: NextF
       return next(new NotFoundError('Product not found'));
     }
 
-    return res.json({
+    return res.status(HTTP_STATUS.OK).json({
       success: true,
       message: 'Product deleted successfully',
       data: deletedProduct,

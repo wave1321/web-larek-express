@@ -3,6 +3,7 @@ import { faker } from '@faker-js/faker';
 import product, { IProduct } from '../models/product';
 import BadRequestError from '../errors/badRequestError';
 import InternalServerError from '../errors/internalServerError';
+import { HTTP_STATUS } from '../constants/httpStatus';
 
 interface IOrderResponse {
   id: string,
@@ -69,7 +70,7 @@ const postOrder = async (req: Request, res: Response, next: NextFunction) => {
       total: calculatedTotal,
     };
 
-    return res.status(201).json(orderResponse);
+    return res.status(HTTP_STATUS.CREATED).json(orderResponse);
   } catch (error) {
     return next(new InternalServerError());
   }

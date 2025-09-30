@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { Error as MongooseError } from 'mongoose';
 import AppError from '../errors/appError';
+import { HTTP_STATUS } from '../constants/httpStatus';
 
 interface ErrorResponse {
   message: string,
@@ -12,17 +13,17 @@ const errorHandler = (
   res: Response,
   _next: NextFunction,
 ) => {
-  let statusCode = 500;
+  let statusCode = HTTP_STATUS.INTERNAL_SERVER_ERROR;
   let message = 'Internal Server Error';
 
   if (err instanceof AppError) {
-    statusCode = err.statusCode;
+    (statusCode as number) = err.statusCode;
     message = err.message;
   } else if (err instanceof MongooseError.ValidationError) {
-    statusCode = 400;
+    (statusCode as number) = HTTP_STATUS.BAD_REQUEST;
     message = 'Data validation error';
   } else if (err instanceof MongooseError.CastError) {
-    statusCode = 400;
+    (statusCode as number) = HTTP_STATUS.BAD_REQUEST;
     message = 'Incorrect data format';
   }
 

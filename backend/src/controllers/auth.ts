@@ -9,6 +9,7 @@ import BadRequestError from '../errors/badRequestError';
 import InternalServerError from '../errors/internalServerError';
 import NotFoundError from '../errors/notFoundError';
 import UnauthorizedError from '../errors/unauthorizedError';
+import { HTTP_STATUS } from '../constants/httpStatus';
 
 // Регистрация
 export const register = async (req: Request, res: Response, next: NextFunction) => {
@@ -48,7 +49,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     );
 
     // Возвращаем ответ
-    return res.status(201).json({
+    return res.status(HTTP_STATUS.CREATED).json({
       success: true,
       user: {
         email: user.email,
@@ -97,7 +98,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     );
 
     // Возвращаем ответ
-    return res.json({
+    return res.status(HTTP_STATUS.OK).json({
       success: true,
       user: {
         email: user.email,
@@ -119,7 +120,7 @@ export const getCurrentUser = async (req: AuthRequest, res: Response, next: Next
       return next(new NotFoundError('User not found'));
     }
 
-    return res.json({
+    return res.status(HTTP_STATUS.OK).json({
       success: true,
       user: {
         email: user.email,
@@ -157,7 +158,7 @@ export const logout = async (req: AuthRequest, res: Response, next: NextFunction
       maxAge: 0,
     });
 
-    return res.json({
+    return res.status(HTTP_STATUS.OK).json({
       success: true,
     });
   } catch (error) {
@@ -206,7 +207,7 @@ export const refreshAccessToken = async (req: Request, res: Response, next: Next
       config.cookie.options,
     );
 
-    return res.json({
+    return res.status(HTTP_STATUS.OK).json({
       success: true,
       user: {
         email: user.email,
